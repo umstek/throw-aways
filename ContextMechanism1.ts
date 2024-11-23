@@ -9,15 +9,21 @@ function createContext<C>(defaultValue: C) {
 
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 	function applyContext<T, A extends any[]>(
-		fn: (...args: A) => T,
+		fn: (...args: A) => Promise<T> | T,
 		context: Partial<C>,
 	) {
-		return (...args: A) => {
+		return async (...args: A) => {
 			const previousContext = currentContext;
 			currentContext = { ...currentContext, ...context };
-			const result = fn(...args);
-			currentContext = previousContext;
-			return result;
+			try {
+				const result = await fn(...args);
+				return result;
+			} catch (error) {
+				console.error("Error in function execution:", error);
+				throw error;
+			} finally {
+				currentContext = previousContext;
+			}
 		};
 	}
 
@@ -26,20 +32,20 @@ function createContext<C>(defaultValue: C) {
 
 const { useContext, applyContext } = createContext({ a: 0, s: "" });
 
-function root() {
+async function root() {
 	const context = { a: 1, s: "hello" };
 
 	const func3WithContext = applyContext(func3, context);
-	assert(func3WithContext() === "func3 result");
+	assert((await func3WithContext()) === "func3 result");
 
 	const func1WithContext = applyContext(func1, context);
-	assert(func1WithContext(1) === "func1 result 1");
+	assert((await func1WithContext(1)) === "func1 result 1");
 
 	const func4WithContext = applyContext(func4, context);
-	assert(func4WithContext() === "func4 result");
+	assert((await func4WithContext()) === "func4 result");
 
 	const func2WithContext = applyContext(func2, context);
-	assert(func2WithContext() === "func2 result");
+	assert((await func2WithContext()) === "func2 result");
 }
 
 function func1(k: number) {
@@ -88,7 +94,7 @@ function deepFuncInDeepFuncInDeepFuncIn2() {
 	return "deepFuncInDeepFuncInDeepFuncIn2 result";
 }
 
-function func3() {
+async function func3() {
 	const context = useContext();
 
 	assert.deepEqual(context, { a: 1, s: "hello" });
@@ -96,7 +102,7 @@ function func3() {
 	const newContext = { a: 2, s: "world" };
 
 	const deepFuncIn3WithContext = applyContext(deepFuncIn3, newContext);
-	assert(deepFuncIn3WithContext() === "deepFuncIn3 result");
+	assert((await deepFuncIn3WithContext()) === "deepFuncIn3 result");
 
 	return "func3 result";
 }
@@ -118,7 +124,7 @@ function deepFuncInDeepFuncIn3() {
 	return "deepFuncInDeepFuncIn3 result";
 }
 
-function func4() {
+async function func4() {
 	const context = useContext();
 
 	assert.deepEqual(context, { a: 1, s: "hello" });
@@ -126,7 +132,7 @@ function func4() {
 	const newContext = { a: 3, s: "foo" };
 
 	const deepFuncIn4WithContext = applyContext(deepFuncIn4, newContext);
-	assert(deepFuncIn4WithContext() === "deepFuncIn4 result");
+	assert((await deepFuncIn4WithContext()) === "deepFuncIn4 result");
 
 	return "func4 result";
 }
