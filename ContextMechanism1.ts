@@ -3,44 +3,42 @@ import assert from "node:assert";
 function createContext<C>(defaultValue: C) {
 	let currentContext = defaultValue;
 
-	function Provider<T>(newContext: Partial<C>, callback: () => T) {
-		const previousContext = currentContext;
-		currentContext = { ...currentContext, ...newContext };
-		const result = callback();
-		currentContext = previousContext;
-		return result;
-	}
-
 	function useContext() {
 		return currentContext;
 	}
 
-	return { Provider, useContext };
+	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+	function applyContext<T, A extends any[]>(
+		fn: (...args: A) => T,
+		context: Partial<C>,
+	) {
+		return (...args: A) => {
+			const previousContext = currentContext;
+			currentContext = { ...currentContext, ...context };
+			const result = fn(...args);
+			currentContext = previousContext;
+			return result;
+		};
+	}
+
+	return { useContext, applyContext };
 }
 
-const { Provider, useContext } = createContext({ a: 0, s: "" });
-
-// biome-ignore lint/suspicious/noExplicitAny: <explanation>
-function withContext<C, T, A extends any[]>(
-	fn: (...args: A) => T,
-	context: Partial<C>,
-) {
-	return (...args: A) => Provider(context, () => fn(...args));
-}
+const { useContext, applyContext } = createContext({ a: 0, s: "" });
 
 function root() {
 	const context = { a: 1, s: "hello" };
 
-	const func3WithContext = withContext(func3, context);
+	const func3WithContext = applyContext(func3, context);
 	assert(func3WithContext() === "func3 result");
 
-	const func1WithContext = withContext(func1, context);
+	const func1WithContext = applyContext(func1, context);
 	assert(func1WithContext(1) === "func1 result 1");
 
-	const func4WithContext = withContext(func4, context);
+	const func4WithContext = applyContext(func4, context);
 	assert(func4WithContext() === "func4 result");
 
-	const func2WithContext = withContext(func2, context);
+	const func2WithContext = applyContext(func2, context);
 	assert(func2WithContext() === "func2 result");
 }
 
@@ -74,8 +72,20 @@ function deepFuncInDeepFuncIn2() {
 	const context = useContext();
 
 	assert.deepEqual(context, { a: 1, s: "hello" });
+	assert(
+		deepFuncInDeepFuncInDeepFuncIn2() ===
+			"deepFuncInDeepFuncInDeepFuncIn2 result",
+	);
 
 	return "deepFuncInDeepFuncIn2 result";
+}
+
+function deepFuncInDeepFuncInDeepFuncIn2() {
+	const context = useContext();
+
+	assert.deepEqual(context, { a: 1, s: "hello" });
+
+	return "deepFuncInDeepFuncInDeepFuncIn2 result";
 }
 
 function func3() {
@@ -85,7 +95,7 @@ function func3() {
 
 	const newContext = { a: 2, s: "world" };
 
-	const deepFuncIn3WithContext = withContext(deepFuncIn3, newContext);
+	const deepFuncIn3WithContext = applyContext(deepFuncIn3, newContext);
 	assert(deepFuncIn3WithContext() === "deepFuncIn3 result");
 
 	return "func3 result";
@@ -115,7 +125,7 @@ function func4() {
 
 	const newContext = { a: 3, s: "foo" };
 
-	const deepFuncIn4WithContext = withContext(deepFuncIn4, newContext);
+	const deepFuncIn4WithContext = applyContext(deepFuncIn4, newContext);
 	assert(deepFuncIn4WithContext() === "deepFuncIn4 result");
 
 	return "func4 result";
